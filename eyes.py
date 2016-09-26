@@ -1,8 +1,10 @@
 #!/usr/bin/python
 
-# OpenGL UV coord system has (0,0) at lower left (not upper left)
+# Eye renderer using pi3d
 
-# Requires svg.path Python library: sudo pip install svg.path
+# Has a heap of dependencies:
+# sudo apt-get install pip python-dev python-imaging
+# sudo pip install numpy pi3d svg.path
 
 import pi3d
 import random

@@ -16,7 +16,11 @@
 // interface in /boot/config.txt:
 //     dtparam=i2c_arm=on
 
-// Must be run as root (e.g. sudo fbx2), because hardware.
+// Must be run as root (e.g. sudo fbx2), because hardware.  Options:
+// -o or -t to select OLED or TFT display
+// -b ### to specify bitrate (default is based on screen type)
+// -f ### to specify max FPS (default is based on single- or multi-core Pi)
+// -s to print FPS while running (default is silent)
 
 // This code works regardless of screen resolution and aspect ratio, but
 // ideally should be set for 640x480 pixels, reason is the scaling method
@@ -64,10 +68,13 @@
 #include <linux/spi/spidev.h>
 #include <bcm_host.h>
 
+
 // CONFIGURATION AND GLOBAL STUFF ------------------------------------------
 
-#define DC_PIN    5  // These pins connect
-#define RESET_PIN 6  // to BOTH screens
+#define DC_PIN    5             // These pins connect
+#define RESET_PIN 6             // to BOTH screens
+#define DCMASK    (1 << DC_PIN) // GPIO pin bitmasks of reset + D/C pins
+#define RESETMASK (1 << RESET_PIN)
 
 // Main and auxiliary SPI buses are used concurrently, thus MOSI and SCLK
 // are unique to each screen, plus CS as expected.  First screen ("right
@@ -76,11 +83,14 @@
 // GPIO #20 (MOSI), #21 (SCLK) and #16 (CE2).  CE2 is used for 2nd screen
 // as it simplified PCB routing
 
+// The following are defaults, most can be overridden via command line.
+
 // Datasheet figures for SPI screen throughput don't always match reality;
 // factors like wire length and quality of connections, phase of the moon
 // and other mysterious influences play a part...run them too fast and the
 // screen will exhibit visual glitches or just not initialize correctly.
-// You may need to tweak these numbers for your particular reality:
+// You may need to tweak these numbers for your particular reality, or
+// use the -b command-line option to set a maximum bitrate.
 #define MAX_OLED_BITRATE 14000000 // Peak SPI rate to OLED w/o glitching
 #define MAX_TFT_BITRATE  24000000 // Peak SPI rate to TFT w/o glitching
 
@@ -93,114 +103,10 @@
 #define MAX_FPS_PI_1 30 // Max frames/sec on single-core Pi
 #define MAX_FPS_PI_2 60 // Max frames/sec on multi-core Pi
 
-// To meet above frame rate limits, rather than introducing more code
-// complexity with alarm signals or CPU-intensive time polling, we exploit
-// the inherent delay of SPI blocking transfers...intentionally limiting
-// bitrates to less than the maximums above, this throttling comes free.
-// Find bits/second needed to sustain max FPS (128x128 16-bit pixels):
-#define MAX_BITRATE_PI_1 ((128 * 128 * 16) * MAX_FPS_PI_1) // Single-core
-#define MAX_BITRATE_PI_2 ((128 * 128 * 16) * MAX_FPS_PI_2) // Multi-core
-// Then set upper limits on bitrates to not exceed OLED or TFT maximums:
-#if MAX_BITRATE_PI_1 < MAX_OLED_BITRATE     // Pi 1 bitrate below OLED max?
-  #define OLED_BITRATE_PI_1 MAX_BITRATE_PI_1 // Yes: Use Pi 1 bitrate
-#else
-  #define OLED_BITRATE_PI_1 MAX_OLED_BITRATE // No: Use OLED max
-#endif
-#if MAX_BITRATE_PI_2 < MAX_OLED_BITRATE     // etc.
-  #define OLED_BITRATE_PI_2 MAX_BITRATE_PI_2
-#else
-  #define OLED_BITRATE_PI_2 MAX_OLED_BITRATE
-#endif
-#if MAX_BITRATE_PI_1 < MAX_TFT_BITRATE
-  #define TFT_BITRATE_PI_1 MAX_BITRATE_PI_1
-#else
-  #define TFT_BITRATE_PI_1 MAX_TFT_BITRATE
-#endif
-#if MAX_BITRATE_PI_2 < MAX_TFT_BITRATE
-  #define TFT_BITRATE_PI_2 MAX_BITRATE_PI_2
-#else
-  #define TFT_BITRATE_PI_2 MAX_TFT_BITRATE
-#endif
-
-// Screen initialization commands and data.  Derived from Adafruit Arduino
-// libraries, stripped bare here...see corresponding original libraries for
-// a more in-depth explanation of each screen command.
-static uint8_t *screenInit[] = {
-(uint8_t[]) { // OLED INIT; Distilled from Adafruit SSD1351 Arduino lib
-  0xFD, 1, 0x12,              // Command lock setting, unlock 1/2
-  0xFD, 1, 0xB1,              // Command lock setting, unlock 2/2
-  0xAE, 0,                    // Display off
-  0xB3, 1, 0xF0,              // Clock div (F1=typical, F0=faster refresh)
-  0xCA, 1, 0x7F,              // Duty cycle (128 lines)
-  0xA2, 1, 0x00,              // Display offset (0)
-  0xA1, 1, 0x00,              // Start line (0)
-  0xA0, 1, 0x74,              // Set remap, color depth (5/6/5)
-  0xB5, 1, 0x00,              // Set GPIO (disable)
-  0xAB, 1, 0x01,              // Function select (internal regulator)
-  0xB4, 3, 0xA0, 0xB5, 0x55,  // Set VSL (external)
-  0xC1, 3, 0xFF, 0xA3, 0xFF,  // Contrast A/B/C
-  0xC7, 1, 0x0F,              // Contrast master (reset)
-  0xB1, 1, 0x32,              // Set precharge & discharge
-  0xBB, 1, 0x07,              // Precharge voltage of color A/B/C
-  0xB2, 3, 0xA4, 0x00, 0x00,  // Display enhanvement
-  0xB6, 1, 0x01,              // Precharge period
-  0xBE, 1, 0x05,              // Set VcomH (0.82 x Vcc)
-  0xA6, 0,                    // Normal display
-  0xAF, 0,                    // Display on
-  0x00 },                     // EOD
-(uint8_t[]) { // TFT INIT; from Adafruit ST7735 Arduino lib ('green tab')
-  0x01, 0x80, 150,            // Software reset, 0 args, w/150ms delay
-  0x11, 0x80, 255,            // Out of sleep mode, 0 args, w/500ms delay
-  0xB1, 3,                    // Frame rate ctrl - normal mode, 3 args:
-    0x01, 0x2C, 0x2D,         // Rate = fosc/(1x2+40) * (LINE+2C+2D)
-  0xB2, 3,                    // Frame rate control - idle mode, 3 args:
-    0x01, 0x2C, 0x2D,         // Rate = fosc/(1x2+40) * (LINE+2C+2D)
-  0xB3, 6,                    // Frame rate ctrl - partial mode, 6 args:
-    0x01, 0x2C, 0x2D,         // Dot inversion mode
-    0x01, 0x2C, 0x2D,         // Line inversion mode
-  0xB4, 1, 0x07,              // Display inversion ctrl: no inversion
-  0xC0, 3,                    // Power control 1, 3 args, no delay:
-    0xA2, 0x02, 0x84,         // -4.6V, AUTO mode
-  0xC1, 1, 0xC5,              // Pwr ctrl 2: VGH25=2.4C VGSEL=-10 VGH=3*AVDD
-  0xC2, 2, 0x0A, 0x00,        // Pwr ctrl 3: opamp current small, boost freq
-  0xC3, 2, 0x8A, 0x2A,        // Pwr ctrl 4: BCLK/2, Opamp small & med low
-  0xC4, 2, 0x8A, 0xEE,        // Power control 5, 2 args, no delay
-  0xC5, 1, 0x0E,              // Power control, 1 arg, no delay
-  0x20, 0,                    // Don't invert display, no args, no delay
-  0x36, 1, 0xC8,              // MADCTL: row addr/col addr, bottom-to-top
-  0x3A, 1, 0x05,              // set color mode, 1 arg: 16-bit color
-  0x2A, 4,                    // Column addr set, 4 args, no delay:
-    0x00, 0x00, 0x00, 0x7F,   // XSTART = 0, XEND = 127
-  0x2B, 4,                    // Row addr set, 4 args, no delay:
-    0x00, 0x00, 0x00, 0x7F,   // XSTART = 0, XEND = 127
-  0xE0, 16,                   // ???, 16 args, no delay:
-    0x02, 0x1c, 0x07, 0x12, 0x37, 0x32, 0x29, 0x2d,
-    0x29, 0x25, 0x2B, 0x39, 0x00, 0x01, 0x03, 0x10,
-  0xE1, 16,                   // ???, 16 args, no delay:
-    0x03, 0x1d, 0x07, 0x06, 0x2E, 0x2C, 0x29, 0x2D,
-    0x2E, 0x2E, 0x37, 0x3F, 0x00, 0x00, 0x02, 0x10,
-  0x13, 0x80, 10,             // Normal display on, no args, w/10ms delay
-  0x29, 0x80, 100,            // Main screen turn on, no args w/100ms delay
-  0x00 } };                   // EOD
-
-#define SCREEN_OLED      0    // Indexes into screenInit[]; compatible
-#define SCREEN_TFT_GREEN 1    // screen types, just these two for now.
-
-static struct spi_ioc_transfer xfer = {
-  .rx_buf        = 0,                 // ioctl() transfer structure for
-  .delay_usecs   = 0,                 // issuing commands (not pixel data)
-  .bits_per_word = 8,                 // to both screens.
-  .pad           = 0,
-  .tx_nbits      = 0,
-  .rx_nbits      = 0,
-  .cs_change     = 0 };
-
 static volatile unsigned              // GPIO stuff:
   *gpio = NULL,                       // Memory-mapped GPIO peripheral
   *gpioSet,                           // Write bitmask of GPIO pins to set
   *gpioClr;                           // Write bitmask of GPIO pins to clear
-static uint32_t
-   resetMask, dcMask;                 // Pin bitmasks for reset and D/C pins
 
 static struct {                       // Per-eye structure:
 	int       fd;                 // SPI file descriptor
@@ -210,11 +116,15 @@ static struct {                       // Per-eye structure:
 } eye[2];                             // For two eyes
 
 static pthread_barrier_t barr;        // For thread synchronization
-
-static uint8_t
-  isPi2      = 0,                     // Will set to 1 if multi-core
-  bufIdx     = 0,                     // Double-buffering index
-  screenType = SCREEN_OLED;           // SCREEN_OLED or SCREEN_TFT_GREEN
+static uint8_t bufIdx = 0;            // Double-buffering index
+static struct spi_ioc_transfer xfer = {
+  .rx_buf        = 0, // ioctl() transfer structure for issuing
+  .delay_usecs   = 0, // commands (not pixel data) to both screens.
+  .bits_per_word = 8,
+  .pad           = 0,
+  .tx_nbits      = 0,
+  .rx_nbits      = 0,
+  .cs_change     = 0 };
 
 // From GPIO example code by Dom and Gert van Loo on elinux.org:
 #define PI1_BCM2708_PERI_BASE 0x20000000
@@ -292,8 +202,8 @@ static int err(int code, char *string) {
 
 // Issue data or command to both SPI displays:
 static void dcX2(uint8_t x, uint8_t dc) {
-	if(dc) *gpioSet = dcMask; // 0/low = command, 1/high = data
-	else   *gpioClr = dcMask;
+	if(dc) *gpioSet = DCMASK; // 0/low = command, 1/high = data
+	else   *gpioClr = DCMASK;
 	xfer.tx_buf = (uint32_t)&x; // Uses global xfer struct,
 	xfer.len    = 1;            // as most elements don't change
 	(void)ioctl(eye[0].fd, SPI_IOC_MESSAGE(1), &xfer);
@@ -331,21 +241,122 @@ void *spiThreadFunc(void *data) {
 
 // INIT AND MAIN LOOP ------------------------------------------------------
 
+#define SCREEN_OLED      0 // Compatible screen types,
+#define SCREEN_TFT_GREEN 1 // just these two for now.
+
+// Screen initialization commands and data.  Derived from Adafruit Arduino
+// libraries, stripped bare here...see corresponding original libraries for
+// a more in-depth explanation of each screen command.
+static uint8_t *screenInit[] = {
+(uint8_t[]) { // OLED INIT; Distilled from Adafruit SSD1351 Arduino lib
+  0xFD, 1, 0x12,              // Command lock setting, unlock 1/2
+  0xFD, 1, 0xB1,              // Command lock setting, unlock 2/2
+  0xAE, 0,                    // Display off
+  0xB3, 1, 0xF0,              // Clock div (F1=typical, F0=faster refresh)
+  0xCA, 1, 0x7F,              // Duty cycle (128 lines)
+  0xA2, 1, 0x00,              // Display offset (0)
+  0xA1, 1, 0x00,              // Start line (0)
+  0xA0, 1, 0x74,              // Set remap, color depth (5/6/5)
+  0xB5, 1, 0x00,              // Set GPIO (disable)
+  0xAB, 1, 0x01,              // Function select (internal regulator)
+  0xB4, 3, 0xA0, 0xB5, 0x55,  // Set VSL (external)
+  0xC1, 3, 0xFF, 0xA3, 0xFF,  // Contrast A/B/C
+  0xC7, 1, 0x0F,              // Contrast master (reset)
+  0xB1, 1, 0x32,              // Set precharge & discharge
+  0xBB, 1, 0x07,              // Precharge voltage of color A/B/C
+  0xB2, 3, 0xA4, 0x00, 0x00,  // Display enhanvement
+  0xB6, 1, 0x01,              // Precharge period
+  0xBE, 1, 0x05,              // Set VcomH (0.82 x Vcc)
+  0xA6, 0,                    // Normal display
+  0xAF, 0,                    // Display on
+  0x00 },                     // EOD
+(uint8_t[]) { // TFT INIT; from Adafruit ST7735 Arduino lib ('green tab')
+  0x01, 0x80, 150,            // Software reset, 0 args, w/150ms delay
+  0x11, 0x80, 255,            // Out of sleep mode, 0 args, w/500ms delay
+  0xB1, 3,                    // Frame rate ctrl - normal mode, 3 args:
+    0x01, 0x2C, 0x2D,         // Rate = fosc/(1x2+40) * (LINE+2C+2D)
+  0xB2, 3,                    // Frame rate control - idle mode, 3 args:
+    0x01, 0x2C, 0x2D,         // Rate = fosc/(1x2+40) * (LINE+2C+2D)
+  0xB3, 6,                    // Frame rate ctrl - partial mode, 6 args:
+    0x01, 0x2C, 0x2D,         // Dot inversion mode
+    0x01, 0x2C, 0x2D,         // Line inversion mode
+  0xB4, 1, 0x07,              // Display inversion ctrl: no inversion
+  0xC0, 3,                    // Power control 1, 3 args, no delay:
+    0xA2, 0x02, 0x84,         // -4.6V, AUTO mode
+  0xC1, 1, 0xC5,              // Pwr ctrl 2: VGH25=2.4C VGSEL=-10 VGH=3*AVDD
+  0xC2, 2, 0x0A, 0x00,        // Pwr ctrl 3: opamp current small, boost freq
+  0xC3, 2, 0x8A, 0x2A,        // Pwr ctrl 4: BCLK/2, Opamp small & med low
+  0xC4, 2, 0x8A, 0xEE,        // Power control 5, 2 args, no delay
+  0xC5, 1, 0x0E,              // Power control, 1 arg, no delay
+  0x20, 0,                    // Don't invert display, no args, no delay
+  0x36, 1, 0xC8,              // MADCTL: row addr/col addr, bottom-to-top
+  0x3A, 1, 0x05,              // set color mode, 1 arg: 16-bit color
+  0x2A, 4,                    // Column addr set, 4 args, no delay:
+    0x00, 0x00, 0x00, 0x7F,   // XSTART = 0, XEND = 127
+  0x2B, 4,                    // Row addr set, 4 args, no delay:
+    0x00, 0x00, 0x00, 0x7F,   // XSTART = 0, XEND = 127
+  0xE0, 16,                   // ???, 16 args, no delay:
+    0x02, 0x1c, 0x07, 0x12, 0x37, 0x32, 0x29, 0x2d,
+    0x29, 0x25, 0x2B, 0x39, 0x00, 0x01, 0x03, 0x10,
+  0xE1, 16,                   // ???, 16 args, no delay:
+    0x03, 0x1d, 0x07, 0x06, 0x2E, 0x2C, 0x29, 0x2D,
+    0x2E, 0x2E, 0x37, 0x3F, 0x00, 0x00, 0x02, 0x10,
+  0x13, 0x80, 10,             // Normal display on, no args, w/10ms delay
+  0x29, 0x80, 100,            // Main screen turn on, no args w/100ms delay
+  0x00 } };                   // EOD
+
 int main(int argc, char *argv[]) {
 
-	// Screen type (OLED/TFT) must be specified; can't auto detect.
-	screenType = ((argc > 1) && tolower(argv[1][0] == 't')) ?
-	  SCREEN_TFT_GREEN : SCREEN_OLED; // Assumed OLED if not given.
+	uint8_t screenType = SCREEN_OLED, // SCREEN_OLED or SCREEN_TFT_GREEN
+	        isPi2      = 0,           // Will set to 1 if multi-core
+	        showFPS    = 0;
+	int     maxBitrate=0, maxFPS=0,   // If 0, use defaults
+	        i, j, fd, fpsBitrate, finalBitrate;
+
+	while((i = getopt(argc, argv, "otb:f:s")) != -1) {
+		switch(i) {
+		   case 'o': // Select OLED screen type
+			screenType = SCREEN_OLED;
+			break;
+		   case 't': // Select TFT screen type
+			screenType = SCREEN_TFT_GREEN;
+			break;
+			break;
+		   case 'b': // Max bitrate
+			maxBitrate = strtol(optarg, NULL, 0);
+			break;
+		   case 'f': // Max frames/second
+			maxFPS = strtol(optarg, NULL, 0);
+			break;
+		   case 's': // Show FPS
+			showFPS = 1;
+			break;
+		}
+	}
+
+	isPi2 = (boardType() == 2);
+	if(!maxFPS) maxFPS = isPi2 ? MAX_FPS_PI_2 : MAX_FPS_PI_1;
+	if(!maxBitrate) {
+		maxBitrate = (screenType == SCREEN_OLED) ?
+		  MAX_OLED_BITRATE : MAX_TFT_BITRATE;
+	}
+
+	// To meet frame rate and bitrate limits, rather than introducing
+	// more code complexity with alarm signals or CPU-intensive time
+	// polling, we exploit the inherent delay of SPI blocking
+	// transfers...intentionally limiting bitrates to less than the
+	// maximum, this FPS throttling comes free.  Determine bitrate
+	// needed to achieve maxFPS, then take the lesser of this or
+	// maxBitrate.
+	fpsBitrate   = ((128 * 128 * 16) * maxFPS); // 128x128 16-bit pixels
+	finalBitrate = (fpsBitrate < maxBitrate) ? fpsBitrate : maxBitrate;
 
 	// GPIO AND OLED SCREEN INIT ---------------------------------------
-
-	int i, j, fd, bitrate;
 
 	if((fd = open("/dev/mem", O_RDWR | O_SYNC)) < 0) {
 		return err(1, "Can't open /dev/mem (try 'sudo')\n");
 	}
-	isPi2 = (boardType() == 2);
-	gpio  = (volatile unsigned *)mmap( // Memory-map I/O
+	gpio = (volatile unsigned *)mmap( // Memory-map I/O
 	  NULL,                 // Any adddress will do
 	  BLOCK_SIZE,           // Mapped block length
 	  PROT_READ|PROT_WRITE, // Enable read+write
@@ -361,9 +372,6 @@ int main(int argc, char *argv[]) {
 	gpioSet = &gpio[7];
 	gpioClr = &gpio[10];
 
-	resetMask = 1 << RESET_PIN;
-	dcMask    = 1 << DC_PIN;
-
 	if(((eye[0].fd = open("/dev/spidev0.0", O_WRONLY|O_NONBLOCK)) < 0) ||
 	   ((eye[1].fd = open("/dev/spidev1.2", O_WRONLY|O_NONBLOCK)) < 0)) {
 		return err(3, "spiOpen() failed");
@@ -372,21 +380,18 @@ int main(int argc, char *argv[]) {
 	INP_GPIO(DC_PIN);    OUT_GPIO(DC_PIN); // Must INP before OUT
 	INP_GPIO(RESET_PIN); OUT_GPIO(RESET_PIN);
 
-	bitrate = (screenType == SCREEN_OLED) ?
-	  (isPi2 ? OLED_BITRATE_PI_2 : OLED_BITRATE_PI_1) :
-	  (isPi2 ? TFT_BITRATE_PI_2  : TFT_BITRATE_PI_1 );
 
-	xfer.speed_hz = bitrate;
+	xfer.speed_hz = finalBitrate;
 	uint8_t  mode = SPI_MODE_0;
 	for(i=0; i<2; i++) {
 		ioctl(eye[i].fd, SPI_IOC_WR_MODE, &mode);
-		ioctl(eye[i].fd, SPI_IOC_WR_MAX_SPEED_HZ, bitrate);
+		ioctl(eye[i].fd, SPI_IOC_WR_MAX_SPEED_HZ, finalBitrate);
 		memcpy(&eye[i].xfer, &xfer, sizeof(xfer));
 	}
 
-	*gpioSet = resetMask; usleep(5); // Reset high,
-	*gpioClr = resetMask; usleep(5); // low,
-	*gpioSet = resetMask; usleep(5); // high
+	*gpioSet = RESETMASK; usleep(5); // Reset high,
+	*gpioClr = RESETMASK; usleep(5); // low,
+	*gpioSet = RESETMASK; usleep(5); // high
 
 	// Initialize SPI screens
 	if(screenType == SCREEN_OLED) {
@@ -562,23 +567,25 @@ int main(int argc, char *argv[]) {
 			dcX2(0x2C, COMMAND); // RAM write
 		}
 
-		*gpioSet = dcMask;     // DC high
+		*gpioSet = DCMASK;     // DC high
 		bufIdx   = 1 - bufIdx; // Swap buffers
 
 		// With screen commands now issued, sync up the threads
 		// again, they'll start pushing data...
 		pthread_barrier_wait(&barr);
 
-		// Show approximate frames-per-second once per second.
-		// The value displayed depends on screen copy and SPI
-		// transfer speed and is disengaged from any application
-		// drawing to the framebuffer, which will be operating
-		// at its own unrelated refresh rate.
-		frames++;
-		if((t = time(NULL)) != prevTime) {
-			(void)printf("%d fps\n", frames);
-			frames   = 0;
-			prevTime = t;
+		if(showFPS) {
+			// Show approximate frames-per-second once per
+			// second.  This is the copy speed of the fbx2
+			// code and is disengaged from the eye-rendering
+			// application, which will be operating at its
+			// own unrelated refresh rate.
+			frames++;
+			if((t = time(NULL)) != prevTime) {
+				(void)printf("%d fps\n", frames);
+				frames   = 0;
+				prevTime = t;
+			}
 		}
 	}
 
@@ -586,4 +593,3 @@ int main(int argc, char *argv[]) {
 	vc_dispmanx_display_close(display);
 	return 0;
 }
-

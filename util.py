@@ -1,7 +1,3 @@
-# OpenGL UV coord system has (0,0) at lower left (not upper left)
-
-
-
 import pi3d
 import math
 from svg.path import Path, parse_path
