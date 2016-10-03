@@ -44,6 +44,11 @@ def pathToPoints(path, numPoints, closed, reverse):
 	return points
 
 
+# Combo wrapper for pathToPoints(getPath(...))
+def getPoints(root, id, numPoints, closed, reverse):
+	return pathToPoints(getPath(root, id), numPoints, closed, reverse)
+
+
 # Scale a given 2D point list by normalizing to a given view box (returned
 # by getViewBox()) then expanding to a given size centered on (0,0).
 def scalePoints(p, vb, radius):
@@ -73,16 +78,17 @@ def pointsInterp(points1, points2, p2weight):
 	return points
 
 
-
-# Instead of making these so general-purpose, I might intentionally
-# rig them to specifically handle the iris (closed shape) and eyelid
-# (open shape) cases. Esp. since the iris is a weird case that'll need
-# 3 paths (edge, open and closed)
-
+# This function rotates a model 90 degrees on the X axis and applies an
+# offset to the texture map's U axis.  pi3d.Lathe() operates around the Y
+# axis, but the eyes need symmetry around the Z axis and applying that
+# transformation along with the eye rotation produced undesirable motion
+# paths.  This is a hacky workaround.  It messes around with some pi3d
+# data structures that it probably shouldn't, and could break with future
+# releases of that code.
 # vertices = buf[0,1,2]
 # normals = buf[3,4,5]
 # tex_coords = buf[6,7,8]
-def rotulate(shape, texOffset):
+def reAxis(shape, texOffset):
 	buf = shape.buf[0].array_buffer
 	for i, v in enumerate(buf):
 		# Rotate vertex
@@ -95,6 +101,14 @@ def rotulate(shape, texOffset):
 		buf[i][5]  = -tmp
 		# Offset texture map on U axis
 		buf[i][6] += texOffset
+
+
+
+# Instead of making these so general-purpose, I might intentionally
+# rig them to specifically handle the iris (closed shape) and eyelid
+# (open shape) cases. Esp. since the iris is a weird case that'll need
+# 3 paths (edge, open and closed)
+
 
 
 
@@ -172,20 +186,16 @@ def pointsMesh(points0, points1, points2, steps, z, closed):
 	return verts
 
 
-# Return Z and angle corresponding to a ring
-# a polygon? A path? Whatev.
-# Actually first point in poly is sufficient, as these are used on
-# circles only.
-# Do this with poly and viewBox BEFORE scaling
-def pfft(points, radius1):
-#	radius1 = vb[2] * 0.5 # Radius of whole eye
-#	dx      = points[0][0] - radius1
-#	dy      = points[0][1] - vb[3] * 0.5
-	dx      = points[0][0]
-	dy      = points[0][1]
-	radius2 = math.sqrt(dx * dx + dy * dy) # Radius of feature of interest
-	z       = math.sqrt(radius1 * radius1 - radius2 * radius2)
-	angle   = math.atan2(radius2, z) * 180.0 / math.pi
+# This function determines the Z depth and angle-from-Z axis of an SVG
+# feature (ostensibly a circle, polygonalized by getPoints()); for example,
+# the depth of the iris, or the start and end angles for the curve that's
+# lathed to form the sclera.  Pass point list and eye radius.
+def zangle(points, r1):
+	dx    = points[0][0]
+	dy    = points[0][1]
+	r2    = math.sqrt(dx * dx + dy * dy) # Radius of feature of interest
+	z     = math.sqrt(r1 * r1 - r2 * r2)
+	angle = math.atan2(r2, z) * 180.0 / math.pi
 
 	return (z, angle)
 
