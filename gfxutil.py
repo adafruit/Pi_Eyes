@@ -78,6 +78,18 @@ def pointsInterp(points1, points2, p2weight):
 	return points
 
 
+# Return bounding rect of 2D point list
+def pointsBounds(points):
+	b = [ points[0][0], points[0][1], points[0][0], points[0][1] ]
+	n = len(points)
+	for p in range(1, n):
+		if points[p][0] < b[0]: b[0] = points[p][0]
+		if points[p][1] < b[1]: b[1] = points[p][1]
+		if points[p][0] > b[2]: b[2] = points[p][0]
+		if points[p][1] > b[3]: b[3] = points[p][1]
+	return b # 4-element list: min X, min Y, max X, max Y
+
+
 # This function rotates a model 90 degrees on the X axis and applies an
 # offset to the texture map's U axis.  pi3d.Lathe() operates around the Y
 # axis, but the eyes need symmetry around the Z axis and applying that
@@ -164,7 +176,7 @@ def meshInit(uSteps, vSteps, closed, uOffset, vOffset, lid):
 
 # Generate mesh between two point lists. U axis steps are determined
 # by number of points, V axis determined by 'steps'
-def pointsMesh(points0, points1, points2, steps, z, closed):
+def pointsMesh(points0, points1, points2, steps, z, closed, flip=False):
 	if steps < 2: steps = 2
 	np1 = len(points1)
 	np2 = len(points2)
@@ -173,15 +185,26 @@ def pointsMesh(points0, points1, points2, steps, z, closed):
 
 	verts = []
 
-	if points0 is not None:
-		for p in points0:
-			verts.append((p[0], p[1], 0))
+	if flip is True:
+		if points0 is not None:
+			for p in reversed(points0):
+				verts.append((-p[0], p[1], 0))
 
-	div = float(steps - 1)
-	for y in range(steps):
-		pList = pointsInterp(points1, points2, y / div)
-		for x in range(np1):
-			verts.append((pList[x][0], pList[x][1], z))
+		div = float(steps - 1)
+		for y in range(steps):
+			pList = pointsInterp(points1, points2, y / div)
+			for x in reversed(range(np1)):
+				verts.append((-pList[x][0], pList[x][1], z))
+	else:
+		if points0 is not None:
+			for p in points0:
+				verts.append((p[0], p[1], 0))
+
+		div = float(steps - 1)
+		for y in range(steps):
+			pList = pointsInterp(points1, points2, y / div)
+			for x in range(np1):
+				verts.append((pList[x][0], pList[x][1], z))
 
 	return verts
 
@@ -198,41 +221,4 @@ def zangle(points, r1):
 	angle = math.atan2(r2, z) * 180.0 / math.pi
 
 	return (z, angle)
-
-
-
-# Given two paths, generate a mesh with a given number of steps
-# Don't pass Z value. It's always zero, period. Can use the
-# pi3d translate function to move it where needed.
-# Maybe pass in an object and have it re_init here, or that could
-# be done in parent func; TBD
-# Can we attach metadata to initial object so it doesn't need to be
-# passed in every time?
-
-#       verts = []
-#       p1 = paths[0]
-#       p2 = paths[1]
-#       dinterp = 1.0 - interp
-#       newPath = []
-#       for p in range(posts):
-#               xx = p1[p][0] * interp + p2[p][0] * dinterp
-#               yy = p1[p][1] * interp + p2[p][1] * dinterp
-#               newPath.append((xx,yy))
-#
-#               s = (p / float(rails) - 0.5) * 2
-#               verts.append((s*eyeRadius, eyeRadius + 20, 0))
-#               y1 = prevPath[p][1] # Old position
-#               y2 = yy             # New position
-#               if y1 > y2:
-#                       verts.append((prevPath[p][0],prevPath[p][1],0))
-#                       verts.append((xx,yy,0))
-#               else:
-#                       verts.append((xx,yy,0))
-#                       verts.append((prevPath[p][0],prevPath[p][1],0))
-#
-#               #for n in range(3):
-#               #       s = (p / float(rails) - 0.5) * 2
-#               #       verts.append((s*eyeRadius, (1-n)*eyeRadius, 0))
-#       foo.re_init(pts=verts);
-#
 
