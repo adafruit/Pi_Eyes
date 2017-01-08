@@ -599,6 +599,10 @@ while True:
 
 	if PUPIL_IN >= 0: # Pupil scale from sensor
 		v = adcValue[PUPIL_IN]
+		if   v < PUPIL_MIN: v = PUPIL_MIN
+		elif v > PUPIL_MAX: v = PUPIL_MAX
+		# Scale to 0.0 to 1.0:
+		v = (v - PUPIL_MIN) / (PUPIL_MAX - PUPIL_MIN)
 		if PUPIL_IN_FLIP: v = 1.0 - v
 		if PUPIL_SMOOTH > 0:
 			v = ((currentPupilScale * (PUPIL_SMOOTH - 1) + v) /
