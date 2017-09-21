@@ -16,6 +16,7 @@ from xml.dom.minidom import parse
 from gfxutil import *
 
 # INPUT CONFIG for eye motion ----------------------------------------------
+# ANALOG INPUTS REQUIRE SNAKE EYES BONNET
 
 JOYSTICK_X_IN   = -1    # Analog input for eye horiz pos (-1 = auto)
 JOYSTICK_Y_IN   = -1    # Analog input for eye vert position (")
@@ -43,8 +44,11 @@ if WINK_R_PIN >= 0: GPIO.setup(WINK_R_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 # ADC stuff ----------------------------------------------------------------
 
-adc      = Adafruit_ADS1x15.ADS1015()
-adcValue = [0] * 4
+if JOYSTICK_X_IN >= 0 or JOYSTICK_Y_IN >= 0 or PUPIL_IN >= 0:
+	adc      = Adafruit_ADS1x15.ADS1015()
+	adcValue = [0] * 4
+else:
+	adc = None
 
 # Because ADC reads are blocking operations, they normally would slow down
 # the animation loop noticably, especially when reading multiple channels
@@ -67,8 +71,9 @@ def adcThread(adc, dest):
 			elif n > 1649: n = 1649
 			dest[i] = n / 1649.0 # Store as 0.0 to 1.0
 
-# Start ADC sampling thread:
-thread.start_new_thread(adcThread, (adc, adcValue))
+# Start ADC sampling thread if needed:
+if adc:
+	thread.start_new_thread(adcThread, (adc, adcValue))
 
 
 # Load SVG file, extract paths & convert to point lists --------------------
