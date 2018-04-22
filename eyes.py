@@ -5,6 +5,7 @@
 # Needed to get SOMETHING working, can focus on improvements next.
 
 import Adafruit_ADS1x15
+import argparse
 import math
 import pi3d
 import random
@@ -55,10 +56,7 @@ else:
 # (even when using high data rate settings).  To avoid this, ADC channels
 # are read in a separate thread and stored in the global list adcValue[],
 # which the animation loop can read at its leisure (with immediate results,
-# no slowdown).  Since there's a finite limit to the animation frame rate,
-# we intentionally use a slower data rate (rather than sleep()) to lessen
-# the impact of this thread.  data_rate of 250 w/4 ADC channels provides
-# at most 75 Hz update from the ADC, which is plenty for this task.
+# no slowdown).
 def adcThread(adc, dest):
 	while True:
 		for i in range(len(dest)):
@@ -66,10 +64,11 @@ def adcThread(adc, dest):
 			# ADC output is -2048 to +2047
 			# Analog inputs will be 0 to ~3.3V,
 			# thus 0 to 1649-ish.  Read & clip:
-			n = adc.read_adc(i, gain=1, data_rate=250)
+			n = adc.read_adc(i, gain=1)
 			if   n <    0: n =    0
 			elif n > 1649: n = 1649
 			dest[i] = n / 1649.0 # Store as 0.0 to 1.0
+		time.sleep(0.01) # 100-ish Hz
 
 # Start ADC sampling thread if needed:
 if adc:
@@ -102,12 +101,15 @@ DISPLAY.set_background(0, 0, 0, 1) # r,g,b,alpha
 # onscreen.  eyePosition, also pixels, is the offset (left or right) from
 # the center point of the screen to the center of each eye.  This geometry
 # is explained more in-depth in fbx2.c.
-if DISPLAY.width <= (DISPLAY.height * 2):
-	eyeRadius   = DISPLAY.width / 5
-	eyePosition = DISPLAY.width / 4
-else:
-	eyeRadius   = DISPLAY.height * 2 / 5
-	eyePosition = DISPLAY.height / 2
+eyePosition = DISPLAY.width / 4
+eyeRadius   = 128  # Default; use 240 for IPS screens
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--radius", type=int)
+args = parser.parse_args()
+if args.radius:
+	eyeRadius = args.radius
+
 
 # A 2D camera is used, mostly to allow for pixel-accurate eye placement,
 # but also because perspective isn't really helpful or needed here, and
