@@ -205,7 +205,7 @@ static const struct {
 	const uint8_t *win;     // Pointer to window command list
 } screen[] = {
   { 128, 128, 10000000, initOLED, winOLED },
-  { 128, 128, 24000000, initTFT , winTFT  },
+  { 128, 128, 12000000, initTFT , winTFT  },
   { 240, 240, 96000000, initIPS , winIPS  } };
 
 // The concurrent nature of this code plus the eye renderer (which may be
