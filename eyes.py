@@ -33,6 +33,7 @@ WINK_L_PIN      = 22    # GPIO pin for LEFT eye wink button
 BLINK_PIN       = 23    # GPIO pin for blink button (BOTH eyes)
 WINK_R_PIN      = 24    # GPIO pin for RIGHT eye wink button
 AUTOBLINK       = True  # If True, eyes blink autonomously
+CRAZY_EYES      = False # If True, each eye moves in different directions
 
 
 # GPIO initialization ------------------------------------------------------
@@ -250,6 +251,18 @@ holdDuration = random.uniform(0.1, 1.1)
 startTime    = 0.0
 isMoving     = False
 
+startXR      = random.uniform(-30.0, 30.0)
+n            = math.sqrt(900.0 - startX * startX)
+startYR      = random.uniform(-n, n)
+destXR       = startXR
+destYR       = startYR
+curXR        = startXR
+curYR        = startYR
+moveDurationR = random.uniform(0.075, 0.175)
+holdDurationR = random.uniform(0.1, 1.1)
+startTimeR    = 0.0
+isMovingR     = False
+
 frames        = 0
 beginningTime = time.time()
 
@@ -294,12 +307,15 @@ blinkStartTimeLeft  = 0
 blinkStartTimeRight = 0
 
 trackingPos = 0.3
+trackingPosR = 0.3
 
 # Generate one frame of imagery
 def frame(p):
 
 	global startX, startY, destX, destY, curX, curY
+	global startXR, startYR, destXR, destYR, curXR, curYR
 	global moveDuration, holdDuration, startTime, isMoving
+	global moveDurationR, holdDurationR, startTimeR, isMovingR
 	global frames
 	global leftIris, rightIris
 	global pupilMinPts, pupilMaxPts, irisPts, irisZ
@@ -318,11 +334,13 @@ def frame(p):
 	global blinkDurationLeft, blinkDurationRight
 	global blinkStartTimeLeft, blinkStartTimeRight
 	global trackingPos
+	global trackingPosR
 
 	DISPLAY.loop_running()
 
 	now = time.time()
 	dt  = now - startTime
+	dtR  = now - startTimeR
 
 	frames += 1
 #	if(now > beginningTime):
@@ -362,6 +380,31 @@ def frame(p):
 				startTime    = now
 				isMoving     = True
 
+		# repeat for other eye if CRAZY_EYES
+        if CRAZY_EYES:
+            if isMovingR == True:
+                if dtR <= moveDurationR:
+                    scale        = (now - startTimeR) / moveDurationR
+                    # Ease in/out curve: 3*t^2-2*t^3
+                    scale = 3.0 * scale * scale - 2.0 * scale * scale * scale
+                    curXR        = startXR + (destXR - startXR) * scale
+                    curYR        = startYR + (destYR - startYR) * scale
+                else:
+                    startXR      = destXR
+                    startYR      = destYR
+                    curXR        = destXR
+                    curYR        = destYR
+                    holdDurationR = random.uniform(0.1, 1.1)
+                    startTimeR    = now
+                    isMovingR     = False
+            else:
+                if dtR >= holdDurationR:
+                    destXR        = random.uniform(-30.0, 30.0)
+                    n             = math.sqrt(900.0 - destXR * destXR)
+                    destYR        = random.uniform(-n, n)
+                    moveDurationR = random.uniform(0.075, 0.175)
+                    startTimeR    = now
+                    isMovingR     = True
 
 	# Regenerate iris geometry only if size changed by >= 1/4 pixel
 	if abs(p - prevPupilScale) >= irisRegenThreshold:
@@ -453,6 +496,11 @@ def frame(p):
 		if   n < 0.0: n = 0.0
 		elif n > 1.0: n = 1.0
 		trackingPos = (trackingPos * 3.0 + n) * 0.25
+		if CRAZY_EYES:
+			n = 0.4 - curYR / 60.0
+			if   n < 0.0: n = 0.0
+			elif n > 1.0: n = 1.0
+			trackingPosR = (trackingPosR * 3.0 + n) * 0.25
 
 	if blinkStateLeft:
 		n = (now - blinkStartTimeLeft) / blinkDurationLeft
@@ -469,8 +517,12 @@ def frame(p):
 		if blinkStateRight == 2: n = 1.0 - n
 	else:
 		n = 0.0
-	newRightUpperLidWeight = trackingPos + (n * (1.0 - trackingPos))
-	newRightLowerLidWeight = (1.0 - trackingPos) + (n * trackingPos)
+	if CRAZY_EYES:
+		newRightUpperLidWeight = trackingPosR + (n * (1.0 - trackingPosR))
+		newRightLowerLidWeight = (1.0 - trackingPosR) + (n * trackingPosR)
+	else:
+		newRightUpperLidWeight = trackingPos + (n * (1.0 - trackingPos))
+		newRightLowerLidWeight = (1.0 - trackingPos) + (n * trackingPos)
 
 	if (luRegen or (abs(newLeftUpperLidWeight - prevLeftUpperLidWeight) >=
 	  upperLidRegenThreshold)):
@@ -547,12 +599,18 @@ def frame(p):
 	convergence = 2.0
 
 	# Right eye (on screen left)
-
-	rightIris.rotateToX(curY)
-	rightIris.rotateToY(curX - convergence)
-	rightIris.draw()
-	rightEye.rotateToX(curY)
-	rightEye.rotateToY(curX - convergence)
+	if CRAZY_EYES:
+		rightIris.rotateToX(curYR)
+		rightIris.rotateToY(curXR - convergence)
+		rightIris.draw()
+		rightEye.rotateToX(curYR)
+		rightEye.rotateToY(curXR - convergence)
+	else:
+		rightIris.rotateToX(curY)
+		rightIris.rotateToY(curX - convergence)
+		rightIris.draw()
+		rightEye.rotateToX(curY)
+		rightEye.rotateToY(curX - convergence)
 	rightEye.draw()
 
 	# Left eye (on screen right)
