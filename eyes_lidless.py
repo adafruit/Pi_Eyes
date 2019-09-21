@@ -19,9 +19,9 @@ from gfxutil import *
 # INPUT CONFIG for eye motion ----------------------------------------------
 # ANALOG INPUTS REQUIRE SNAKE EYES BONNET
 
-JOYSTICK_X_IN   = -1    # Analog input for eye horiz pos (-1 = auto)
-JOYSTICK_Y_IN   = -1    # Analog input for eye vert position (")
-PUPIL_IN        = -1    # Analog input for pupil control (-1 = auto)
+JOYSTICK_X_IN   = 1    # Analog input for eye horiz pos (-1 = auto)
+JOYSTICK_Y_IN   = 2    # Analog input for eye vert position (")
+PUPIL_IN        = 0    # Analog input for pupil control (-1 = auto)
 JOYSTICK_X_FLIP = False # If True, reverse stick X axis
 JOYSTICK_Y_FLIP = False # If True, reverse stick Y axis
 PUPIL_IN_FLIP   = False # If True, reverse reading from PUPIL_IN
