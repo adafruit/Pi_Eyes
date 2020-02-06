@@ -206,7 +206,7 @@ static const struct {
 } screen[] = {
   { 128, 128, 10000000, initOLED, winOLED },
   { 128, 128, 12000000, initTFT , winTFT  },
-  { 240, 240, 96000000, initIPS , winIPS  } };
+  { 240, 240, 80000000, initIPS , winIPS  } };
 
 // The concurrent nature of this code plus the eye renderer (which may be
 // performing heavy math) can be taxing, mostly on single-core systems; a
