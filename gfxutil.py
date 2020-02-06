@@ -163,8 +163,8 @@ def meshInit(uSteps, vSteps, closed, uOffset, vOffset, lid):
 	for v in range(vRange):
 		for u in range(uSteps - 1):
 			s = v * uSteps + u
- 			idx.append((s+uSteps, s         , s+1     ))
- 			idx.append((s+1     , s+uSteps+1, s+uSteps))
+			idx.append((s+uSteps, s         , s+1     ))
+			idx.append((s+1     , s+uSteps+1, s+uSteps))
 
 	shape = pi3d.Shape(None, None, "foo", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
 	  1.0, 1.0, 1.0, 0.0, 0.0, 0.0)

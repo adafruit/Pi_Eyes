@@ -9,7 +9,7 @@ import argparse
 import math
 import pi3d
 import random
-import thread
+import _thread
 import time
 import RPi.GPIO as GPIO
 from svg.path import Path, parse_path
@@ -172,14 +172,14 @@ if maxDist > 0: irisRegenThreshold = 0.25 / maxDist
 # paths is evaluated, then similar 1/4 pixel threshold is determined.
 upperLidRegenThreshold = 0.0
 lowerLidRegenThreshold = 0.0
-p1 = upperLidOpenPts[len(upperLidOpenPts) / 2]
-p2 = upperLidClosedPts[len(upperLidClosedPts) / 2]
+p1 = upperLidOpenPts[len(upperLidOpenPts) // 2]
+p2 = upperLidClosedPts[len(upperLidClosedPts) // 2]
 dx = p2[0] - p1[0]
 dy = p2[1] - p1[1]
 d  = dx * dx + dy * dy
 if d > 0: upperLidRegenThreshold = 0.25 / math.sqrt(d)
-p1 = lowerLidOpenPts[len(lowerLidOpenPts) / 2]
-p2 = lowerLidClosedPts[len(lowerLidClosedPts) / 2]
+p1 = lowerLidOpenPts[len(lowerLidOpenPts) // 2]
+p2 = lowerLidClosedPts[len(lowerLidClosedPts) // 2]
 dx = p2[0] - p1[0]
 dy = p2[1] - p1[1]
 d  = dx * dx + dy * dy
@@ -381,7 +381,7 @@ def frame(p):
 				isMoving     = True
 
 		# repeat for other eye if CRAZY_EYES
-        if CRAZY_EYES:
+	if CRAZY_EYES:
             if isMovingR == True:
                 if dtR <= moveDurationR:
                     scale        = (now - startTimeR) / moveDurationR
