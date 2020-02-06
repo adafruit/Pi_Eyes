@@ -9,7 +9,7 @@ import argparse
 import math
 import pi3d
 import random
-import _thread
+import threading
 import time
 import RPi.GPIO as GPIO
 from svg.path import Path, parse_path
@@ -69,11 +69,12 @@ def adcThread(adc, dest):
 			if   n <    0: n =    0
 			elif n > 1649: n = 1649
 			dest[i] = n / 1649.0 # Store as 0.0 to 1.0
-		time.sleep(0.01) # 100-ish Hz
+		time.sleep(0.016) # 60-ish Hz
 
 # Start ADC sampling thread if needed:
 if adc:
-	thread.start_new_thread(adcThread, (adc, adcValue))
+	t = threading.Thread(target=adcThread, args=(adc, adcValue))
+	t.start()
 
 
 # Load SVG file, extract paths & convert to point lists --------------------
