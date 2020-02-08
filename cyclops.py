@@ -6,16 +6,16 @@
 # Snake Eyes Bonnet if you just have it running in autonomous mode.
 # Code is just as in-progress as eyes.py and could use some work.
 
-import Adafruit_ADS1x15
 import math
 import pi3d
 import random
-import thread
+import threading
 import time
 import RPi.GPIO as GPIO
 from svg.path import Path, parse_path
 from xml.dom.minidom import parse
 from gfxutil import *
+from snake_eyes_bonnet import SnakeEyesBonnet
 
 # INPUT CONFIG for eye motion ----------------------------------------------
 # ANALOG INPUTS REQUIRE SNAKE EYES BONNET
@@ -42,36 +42,15 @@ if BLINK_PIN >= 0: GPIO.setup(BLINK_PIN , GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 # ADC stuff ----------------------------------------------------------------
 
+# ADC channels are read and stored in a separate thread to avoid slowdown
+# from blocking operations. The animation loop can read at its leisure.
+
 if JOYSTICK_X_IN >= 0 or JOYSTICK_Y_IN >= 0 or PUPIL_IN >= 0:
-	adc      = Adafruit_ADS1x15.ADS1015()
-	adcValue = [0] * 4
-else:
-	adc = None
-
-# Because ADC reads are blocking operations, they normally would slow down
-# the animation loop noticably, especially when reading multiple channels
-# (even when using high data rate settings).  To avoid this, ADC channels
-# are read in a separate thread and stored in the global list adcValue[],
-# which the animation loop can read at its leisure (with immediate results,
-# no slowdown).  Since there's a finite limit to the animation frame rate,
-# we intentionally use a slower data rate (rather than sleep()) to lessen
-# the impact of this thread.  data_rate of 250 w/4 ADC channels provides
-# at most 75 Hz update from the ADC, which is plenty for this task.
-def adcThread(adc, dest):
-	while True:
-		for i in range(len(dest)):
-			# ADC input range is +- 4.096V
-			# ADC output is -2048 to +2047
-			# Analog inputs will be 0 to ~3.3V,
-			# thus 0 to 1649-ish.  Read & clip:
-			n = adc.read_adc(i, gain=1, data_rate=250)
-			if   n <    0: n =    0
-			elif n > 1649: n = 1649
-			dest[i] = n / 1649.0 # Store as 0.0 to 1.0
-
-# Start ADC sampling thread if needed:
-if adc:
-	thread.start_new_thread(adcThread, (adc, adcValue))
+	bonnet = SnakeEyesBonnet(daemon=True)
+	bonnet.setup_channel(JOYSTICK_X_IN, reverse=JOYSTICK_X_FLIP)
+	bonnet.setup_channel(JOYSTICK_Y_IN, reverse=JOYSTICK_Y_FLIP)
+	bonnet.setup_channel(PUPIL_IN, reverse=PUPIL_IN_FLIP)
+	bonnet.start()
 
 
 # Load SVG file, extract paths & convert to point lists --------------------
@@ -167,14 +146,14 @@ if maxDist > 0: irisRegenThreshold = 0.5 / maxDist
 # paths is evaluated, then similar 1/2 pixel threshold is determined.
 upperLidRegenThreshold = 0.0
 lowerLidRegenThreshold = 0.0
-p1 = upperLidOpenPts[len(upperLidOpenPts) / 2]
-p2 = upperLidClosedPts[len(upperLidClosedPts) / 2]
+p1 = upperLidOpenPts[len(upperLidOpenPts) // 2]
+p2 = upperLidClosedPts[len(upperLidClosedPts) // 2]
 dx = p2[0] - p1[0]
 dy = p2[1] - p1[1]
 d  = dx * dx + dy * dy
 if d > 0: upperLidRegenThreshold = 0.5 / math.sqrt(d)
-p1 = lowerLidOpenPts[len(lowerLidOpenPts) / 2]
-p2 = lowerLidClosedPts[len(lowerLidClosedPts) / 2]
+p1 = lowerLidOpenPts[len(lowerLidOpenPts) // 2]
+p2 = lowerLidClosedPts[len(lowerLidClosedPts) // 2]
 dx = p2[0] - p1[0]
 dy = p2[1] - p1[1]
 d  = dx * dx + dy * dy
@@ -289,10 +268,8 @@ def frame(p):
 
 	if JOYSTICK_X_IN >= 0 and JOYSTICK_Y_IN >= 0:
 		# Eye position from analog inputs
-		curX = adcValue[JOYSTICK_X_IN]
-		curY = adcValue[JOYSTICK_Y_IN]
-		if JOYSTICK_X_FLIP: curX = 1.0 - curX
-		if JOYSTICK_Y_FLIP: curY = 1.0 - curY
+		curX = bonnet.channel[JOYSTICK_X_IN].value
+		curY = bonnet.channel[JOYSTICK_Y_IN].value
 		curX = -30.0 + curX * 60.0
 		curY = -30.0 + curY * 60.0
 	else :
@@ -428,8 +405,8 @@ def frame(p):
 	eye.rotateToX(curY)
 	eye.rotateToY(curX)
 	eye.draw()
-        upperEyelid.draw()
-        lowerEyelid.draw()
+	upperEyelid.draw()
+	lowerEyelid.draw()
 
 	k = mykeys.read()
 	if k==27:
@@ -467,8 +444,7 @@ def split( # Recursive simulated pupil response when no analog sensor
 while True:
 
 	if PUPIL_IN >= 0: # Pupil scale from sensor
-		v = adcValue[PUPIL_IN]
-		if PUPIL_IN_FLIP: v = 1.0 - v
+		v = bonnet.channel[PUPIL_IN].value
 		# If you need to calibrate PUPIL_MIN and MAX,
 		# add a 'print v' here for testing.
 		if   v < PUPIL_MIN: v = PUPIL_MIN
