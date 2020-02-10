@@ -60,18 +60,18 @@ if JOYSTICK_X_IN >= 0 or JOYSTICK_Y_IN >= 0 or PUPIL_IN >= 0:
 # for how the WorldEye distorts things...looks OK on WorldEye now but might
 # seem small and silly if used with the regular OLED/TFT code.
 dom               = parse("graphics/cyclops-eye.svg")
-vb                = getViewBox(dom)
-pupilMinPts       = getPoints(dom, "pupilMin"      , 32, True , True )
-pupilMaxPts       = getPoints(dom, "pupilMax"      , 32, True , True )
-irisPts           = getPoints(dom, "iris"          , 32, True , True )
-scleraFrontPts    = getPoints(dom, "scleraFront"   ,  0, False, False)
-scleraBackPts     = getPoints(dom, "scleraBack"    ,  0, False, False)
-upperLidClosedPts = getPoints(dom, "upperLidClosed", 33, False, True )
-upperLidOpenPts   = getPoints(dom, "upperLidOpen"  , 33, False, True )
-upperLidEdgePts   = getPoints(dom, "upperLidEdge"  , 33, False, False)
-lowerLidClosedPts = getPoints(dom, "lowerLidClosed", 33, False, False)
-lowerLidOpenPts   = getPoints(dom, "lowerLidOpen"  , 33, False, False)
-lowerLidEdgePts   = getPoints(dom, "lowerLidEdge"  , 33, False, False)
+vb                = get_view_box(dom)
+pupilMinPts       = get_points(dom, "pupilMin"      , 32, True , True )
+pupilMaxPts       = get_points(dom, "pupilMax"      , 32, True , True )
+irisPts           = get_points(dom, "iris"          , 32, True , True )
+scleraFrontPts    = get_points(dom, "scleraFront"   ,  0, False, False)
+scleraBackPts     = get_points(dom, "scleraBack"    ,  0, False, False)
+upperLidClosedPts = get_points(dom, "upperLidClosed", 33, False, True )
+upperLidOpenPts   = get_points(dom, "upperLidOpen"  , 33, False, True )
+upperLidEdgePts   = get_points(dom, "upperLidEdge"  , 33, False, False)
+lowerLidClosedPts = get_points(dom, "lowerLidClosed", 33, False, False)
+lowerLidOpenPts   = get_points(dom, "lowerLidOpen"  , 33, False, False)
+lowerLidEdgePts   = get_points(dom, "lowerLidEdge"  , 33, False, False)
 
 
 # Set up display and initialize pi3d ---------------------------------------
@@ -112,17 +112,17 @@ lidMap    = pi3d.Texture("graphics/lid.png"   , mipmap=False,
 # Initialize static geometry -----------------------------------------------
 
 # Transform point lists to eye dimensions
-scalePoints(pupilMinPts      , vb, eyeRadius)
-scalePoints(pupilMaxPts      , vb, eyeRadius)
-scalePoints(irisPts          , vb, eyeRadius)
-scalePoints(scleraFrontPts   , vb, eyeRadius)
-scalePoints(scleraBackPts    , vb, eyeRadius)
-scalePoints(upperLidClosedPts, vb, eyeRadius)
-scalePoints(upperLidOpenPts  , vb, eyeRadius)
-scalePoints(upperLidEdgePts  , vb, eyeRadius)
-scalePoints(lowerLidClosedPts, vb, eyeRadius)
-scalePoints(lowerLidOpenPts  , vb, eyeRadius)
-scalePoints(lowerLidEdgePts  , vb, eyeRadius)
+scale_points(pupilMinPts      , vb, eyeRadius)
+scale_points(pupilMaxPts      , vb, eyeRadius)
+scale_points(irisPts          , vb, eyeRadius)
+scale_points(scleraFrontPts   , vb, eyeRadius)
+scale_points(scleraBackPts    , vb, eyeRadius)
+scale_points(upperLidClosedPts, vb, eyeRadius)
+scale_points(upperLidOpenPts  , vb, eyeRadius)
+scale_points(upperLidEdgePts  , vb, eyeRadius)
+scale_points(lowerLidClosedPts, vb, eyeRadius)
+scale_points(lowerLidOpenPts  , vb, eyeRadius)
+scale_points(lowerLidEdgePts  , vb, eyeRadius)
 
 # Regenerating flexible object geometry (such as eyelids during blinks, or
 # iris during pupil dilation) is CPU intensive, can noticably slow things
@@ -132,8 +132,8 @@ scalePoints(lowerLidEdgePts  , vb, eyeRadius)
 
 # Determine change in pupil size to trigger iris geometry regen
 irisRegenThreshold = 0.0
-a = pointsBounds(pupilMinPts) # Bounds of pupil at min size (in pixels)
-b = pointsBounds(pupilMaxPts) # " at max size
+a = points_bounds(pupilMinPts) # Bounds of pupil at min size (in pixels)
+b = points_bounds(pupilMaxPts) # " at max size
 maxDist = max(abs(a[0] - b[0]), abs(a[1] - b[1]), # Determine distance of max
               abs(a[2] - b[2]), abs(a[3] - b[3])) # variance around each edge
 # maxDist is motion range in pixels as pupil scales between 0.0 and 1.0.
@@ -161,17 +161,17 @@ if d > 0: lowerLidRegenThreshold = 0.5 / math.sqrt(d)
 
 # Generate initial iris mesh; vertex elements will get replaced on
 # a per-frame basis in the main loop, this just sets up textures, etc.
-iris = meshInit(32, 4, True, 0, 0.5/irisMap.iy, False)
+iris = mesh_init((32, 4), (0, 0.5 / irisMap.iy), True, False)
 iris.set_textures([irisMap])
 iris.set_shader(shader)
 irisZ = zangle(irisPts, eyeRadius)[0] * 0.99 # Get iris Z depth, for later
 
 # Eyelid meshes are likewise temporary; texture coordinates are
 # assigned here but geometry is dynamically regenerated in main loop.
-upperEyelid = meshInit(33, 5, False, 0, 0.5/lidMap.iy, True)
+upperEyelid = mesh_init((33, 5), (0, 0.5 / lidMap.iy), False, True)
 upperEyelid.set_textures([lidMap])
 upperEyelid.set_shader(shader)
-lowerEyelid = meshInit(33, 5, False, 0, 0.5/lidMap.iy, True)
+lowerEyelid = mesh_init((33, 5), (0, 0.5 / lidMap.iy), False, True)
 lowerEyelid.set_textures([lidMap])
 lowerEyelid.set_shader(shader)
 
@@ -187,7 +187,7 @@ for i in range(24):
 eye = pi3d.Lathe(path=pts, sides=64)
 eye.set_textures([scleraMap])
 eye.set_shader(shader)
-reAxis(eye, 0.0)
+re_axis(eye, 0.0)
 
 
 # Init global stuff --------------------------------------------------------
@@ -220,8 +220,8 @@ currentPupilScale  =  0.5
 prevPupilScale     = -1.0 # Force regen on first frame
 prevUpperLidWeight = 0.5
 prevLowerLidWeight = 0.5
-prevUpperLidPts    = pointsInterp(upperLidOpenPts, upperLidClosedPts, 0.5)
-prevLowerLidPts    = pointsInterp(lowerLidOpenPts, lowerLidClosedPts, 0.5)
+prevUpperLidPts    = points_interp(upperLidOpenPts, upperLidClosedPts, 0.5)
+prevLowerLidPts    = points_interp(lowerLidOpenPts, lowerLidClosedPts, 0.5)
 
 ruRegen = True
 rlRegen = True
@@ -305,9 +305,9 @@ def frame(p):
 	# Regenerate iris geometry only if size changed by >= 1/2 pixel
 	if abs(p - prevPupilScale) >= irisRegenThreshold:
 		# Interpolate points between min and max pupil sizes
-		interPupil = pointsInterp(pupilMinPts, pupilMaxPts, p)
+		interPupil = points_interp(pupilMinPts, pupilMaxPts, p)
 		# Generate mesh between interpolated pupil and iris bounds
-		mesh = pointsMesh(None, interPupil, irisPts, 4, -irisZ, True)
+		mesh = points_mesh((None, interPupil, irisPts), 4, -irisZ, True)
 		iris.re_init(pts=mesh)
 		prevPupilScale = p
 
@@ -363,16 +363,16 @@ def frame(p):
 
 	if (ruRegen or (abs(newUpperLidWeight - prevUpperLidWeight) >=
 	  upperLidRegenThreshold)):
-		newUpperLidPts = pointsInterp(upperLidOpenPts,
+		newUpperLidPts = points_interp(upperLidOpenPts,
 		  upperLidClosedPts, newUpperLidWeight)
 		if newUpperLidWeight > prevUpperLidWeight:
-			upperEyelid.re_init(pts=pointsMesh(
-			  upperLidEdgePts, prevUpperLidPts,
-			  newUpperLidPts, 5, 0, False, True))
+			upperEyelid.re_init(pts=points_mesh(
+			  (upperLidEdgePts, prevUpperLidPts,
+			  newUpperLidPts), 5, 0, False))
 		else:
-			upperEyelid.re_init(pts=pointsMesh(
-			  upperLidEdgePts, newUpperLidPts,
-			  prevUpperLidPts, 5, 0, False, True))
+			upperEyelid.re_init(pts=points_mesh(
+			  (upperLidEdgePts, newUpperLidPts,
+			  prevUpperLidPts), 5, 0, False))
 		prevUpperLidWeight = newUpperLidWeight
 		prevUpperLidPts    = newUpperLidPts
 		ruRegen = True
@@ -381,16 +381,16 @@ def frame(p):
 
 	if (rlRegen or (abs(newLowerLidWeight - prevLowerLidWeight) >=
 	  lowerLidRegenThreshold)):
-		newLowerLidPts = pointsInterp(lowerLidOpenPts,
+		newLowerLidPts = points_interp(lowerLidOpenPts,
 		  lowerLidClosedPts, newLowerLidWeight)
 		if newLowerLidWeight > prevLowerLidWeight:
-			lowerEyelid.re_init(pts=pointsMesh(
-			  lowerLidEdgePts, prevLowerLidPts,
-			  newLowerLidPts, 5, 0, False, True))
+			lowerEyelid.re_init(pts=points_mesh(
+			  (lowerLidEdgePts, prevLowerLidPts,
+			  newLowerLidPts), 5, 0, False))
 		else:
-			lowerEyelid.re_init(pts=pointsMesh(
-			  lowerLidEdgePts, newLowerLidPts,
-			  prevLowerLidPts, 5, 0, False, True))
+			lowerEyelid.re_init(pts=points_mesh(
+			  (lowerLidEdgePts, newLowerLidPts,
+			  prevLowerLidPts), 5, 0, False))
 		prevLowerLidWeight = newLowerLidWeight
 		prevLowerLidPts    = newLowerLidPts
 		rlRegen = True

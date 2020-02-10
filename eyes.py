@@ -60,18 +60,18 @@ if JOYSTICK_X_IN >= 0 or JOYSTICK_Y_IN >= 0 or PUPIL_IN >= 0:
 # Load SVG file, extract paths & convert to point lists --------------------
 
 dom               = parse("graphics/eye.svg")
-vb                = getViewBox(dom)
-pupilMinPts       = getPoints(dom, "pupilMin"      , 32, True , True )
-pupilMaxPts       = getPoints(dom, "pupilMax"      , 32, True , True )
-irisPts           = getPoints(dom, "iris"          , 32, True , True )
-scleraFrontPts    = getPoints(dom, "scleraFront"   ,  0, False, False)
-scleraBackPts     = getPoints(dom, "scleraBack"    ,  0, False, False)
-upperLidClosedPts = getPoints(dom, "upperLidClosed", 33, False, True )
-upperLidOpenPts   = getPoints(dom, "upperLidOpen"  , 33, False, True )
-upperLidEdgePts   = getPoints(dom, "upperLidEdge"  , 33, False, False)
-lowerLidClosedPts = getPoints(dom, "lowerLidClosed", 33, False, False)
-lowerLidOpenPts   = getPoints(dom, "lowerLidOpen"  , 33, False, False)
-lowerLidEdgePts   = getPoints(dom, "lowerLidEdge"  , 33, False, False)
+vb                = get_view_box(dom)
+pupilMinPts       = get_points(dom, "pupilMin"      , 32, True , True )
+pupilMaxPts       = get_points(dom, "pupilMax"      , 32, True , True )
+irisPts           = get_points(dom, "iris"          , 32, True , True )
+scleraFrontPts    = get_points(dom, "scleraFront"   ,  0, False, False)
+scleraBackPts     = get_points(dom, "scleraBack"    ,  0, False, False)
+upperLidClosedPts = get_points(dom, "upperLidClosed", 33, False, True )
+upperLidOpenPts   = get_points(dom, "upperLidOpen"  , 33, False, True )
+upperLidEdgePts   = get_points(dom, "upperLidEdge"  , 33, False, False)
+lowerLidClosedPts = get_points(dom, "lowerLidClosed", 33, False, False)
+lowerLidOpenPts   = get_points(dom, "lowerLidOpen"  , 33, False, False)
+lowerLidEdgePts   = get_points(dom, "lowerLidEdge"  , 33, False, False)
 
 
 # Set up display and initialize pi3d ---------------------------------------
@@ -119,17 +119,17 @@ lidMap    = pi3d.Texture("graphics/lid.png"   , mipmap=False,
 # Initialize static geometry -----------------------------------------------
 
 # Transform point lists to eye dimensions
-scalePoints(pupilMinPts      , vb, eyeRadius)
-scalePoints(pupilMaxPts      , vb, eyeRadius)
-scalePoints(irisPts          , vb, eyeRadius)
-scalePoints(scleraFrontPts   , vb, eyeRadius)
-scalePoints(scleraBackPts    , vb, eyeRadius)
-scalePoints(upperLidClosedPts, vb, eyeRadius)
-scalePoints(upperLidOpenPts  , vb, eyeRadius)
-scalePoints(upperLidEdgePts  , vb, eyeRadius)
-scalePoints(lowerLidClosedPts, vb, eyeRadius)
-scalePoints(lowerLidOpenPts  , vb, eyeRadius)
-scalePoints(lowerLidEdgePts  , vb, eyeRadius)
+scale_points(pupilMinPts      , vb, eyeRadius)
+scale_points(pupilMaxPts      , vb, eyeRadius)
+scale_points(irisPts          , vb, eyeRadius)
+scale_points(scleraFrontPts   , vb, eyeRadius)
+scale_points(scleraBackPts    , vb, eyeRadius)
+scale_points(upperLidClosedPts, vb, eyeRadius)
+scale_points(upperLidOpenPts  , vb, eyeRadius)
+scale_points(upperLidEdgePts  , vb, eyeRadius)
+scale_points(lowerLidClosedPts, vb, eyeRadius)
+scale_points(lowerLidOpenPts  , vb, eyeRadius)
+scale_points(lowerLidEdgePts  , vb, eyeRadius)
 
 # Regenerating flexible object geometry (such as eyelids during blinks, or
 # iris during pupil dilation) is CPU intensive, can noticably slow things
@@ -139,8 +139,8 @@ scalePoints(lowerLidEdgePts  , vb, eyeRadius)
 
 # Determine change in pupil size to trigger iris geometry regen
 irisRegenThreshold = 0.0
-a = pointsBounds(pupilMinPts) # Bounds of pupil at min size (in pixels)
-b = pointsBounds(pupilMaxPts) # " at max size
+a = points_bounds(pupilMinPts) # Bounds of pupil at min size (in pixels)
+b = points_bounds(pupilMaxPts) # " at max size
 maxDist = max(abs(a[0] - b[0]), abs(a[1] - b[1]), # Determine distance of max
               abs(a[2] - b[2]), abs(a[3] - b[3])) # variance around each edge
 # maxDist is motion range in pixels as pupil scales between 0.0 and 1.0.
@@ -168,29 +168,29 @@ if d > 0: lowerLidRegenThreshold = 0.25 / math.sqrt(d)
 
 # Generate initial iris meshes; vertex elements will get replaced on
 # a per-frame basis in the main loop, this just sets up textures, etc.
-rightIris = meshInit(32, 4, True, 0, 0.5/irisMap.iy, False)
+rightIris = mesh_init((32, 4), (0, 0.5 / irisMap.iy), True, False)
 rightIris.set_textures([irisMap])
 rightIris.set_shader(shader)
 # Left iris map U value is offset by 0.5; effectively a 180 degree
 # rotation, so it's less obvious that the same texture is in use on both.
-leftIris = meshInit(32, 4, True, 0.5, 0.5/irisMap.iy, False)
+leftIris = mesh_init((32, 4), (0.5, 0.5 / irisMap.iy), True, False)
 leftIris.set_textures([irisMap])
 leftIris.set_shader(shader)
 irisZ = zangle(irisPts, eyeRadius)[0] * 0.99 # Get iris Z depth, for later
 
 # Eyelid meshes are likewise temporary; texture coordinates are
 # assigned here but geometry is dynamically regenerated in main loop.
-leftUpperEyelid = meshInit(33, 5, False, 0, 0.5/lidMap.iy, True)
+leftUpperEyelid = mesh_init((33, 5), (0, 0.5 / lidMap.iy), False, True)
 leftUpperEyelid.set_textures([lidMap])
 leftUpperEyelid.set_shader(shader)
-leftLowerEyelid = meshInit(33, 5, False, 0, 0.5/lidMap.iy, True)
+leftLowerEyelid = mesh_init((33, 5), (0, 0.5 / lidMap.iy), False, True)
 leftLowerEyelid.set_textures([lidMap])
 leftLowerEyelid.set_shader(shader)
 
-rightUpperEyelid = meshInit(33, 5, False, 0, 0.5/lidMap.iy, True)
+rightUpperEyelid = mesh_init((33, 5), (0, 0.5 / lidMap.iy), False, True)
 rightUpperEyelid.set_textures([lidMap])
 rightUpperEyelid.set_shader(shader)
-rightLowerEyelid = meshInit(33, 5, False, 0, 0.5/lidMap.iy, True)
+rightLowerEyelid = mesh_init((33, 5), (0, 0.5 / lidMap.iy), False, True)
 rightLowerEyelid.set_textures([lidMap])
 rightLowerEyelid.set_shader(shader)
 
@@ -209,11 +209,11 @@ for i in range(24):
 leftEye = pi3d.Lathe(path=pts, sides=64)
 leftEye.set_textures([scleraMap])
 leftEye.set_shader(shader)
-reAxis(leftEye, 0)
+re_axis(leftEye, 0)
 rightEye = pi3d.Lathe(path=pts, sides=64)
 rightEye.set_textures([scleraMap])
 rightEye.set_shader(shader)
-reAxis(rightEye, 0.5) # Image map offset = 180 degree rotation
+re_axis(rightEye, 0.5) # Image map offset = 180 degree rotation
 
 
 # Init global stuff --------------------------------------------------------
@@ -267,10 +267,10 @@ prevLeftUpperLidWeight  = 0.5
 prevLeftLowerLidWeight  = 0.5
 prevRightUpperLidWeight = 0.5
 prevRightLowerLidWeight = 0.5
-prevLeftUpperLidPts  = pointsInterp(upperLidOpenPts, upperLidClosedPts, 0.5)
-prevLeftLowerLidPts  = pointsInterp(lowerLidOpenPts, lowerLidClosedPts, 0.5)
-prevRightUpperLidPts = pointsInterp(upperLidOpenPts, upperLidClosedPts, 0.5)
-prevRightLowerLidPts = pointsInterp(lowerLidOpenPts, lowerLidClosedPts, 0.5)
+prevLeftUpperLidPts  = points_interp(upperLidOpenPts, upperLidClosedPts, 0.5)
+prevLeftLowerLidPts  = points_interp(lowerLidOpenPts, lowerLidClosedPts, 0.5)
+prevRightUpperLidPts = points_interp(upperLidOpenPts, upperLidClosedPts, 0.5)
+prevRightLowerLidPts = points_interp(lowerLidOpenPts, lowerLidClosedPts, 0.5)
 
 luRegen = True
 llRegen = True
@@ -389,9 +389,9 @@ def frame(p):
 	# Regenerate iris geometry only if size changed by >= 1/4 pixel
 	if abs(p - prevPupilScale) >= irisRegenThreshold:
 		# Interpolate points between min and max pupil sizes
-		interPupil = pointsInterp(pupilMinPts, pupilMaxPts, p)
+		interPupil = points_interp(pupilMinPts, pupilMaxPts, p)
 		# Generate mesh between interpolated pupil and iris bounds
-		mesh = pointsMesh(None, interPupil, irisPts, 4, -irisZ, True)
+		mesh = points_mesh((None, interPupil, irisPts), 4, -irisZ, True)
 		# Assign to both eyes
 		leftIris.re_init(pts=mesh)
 		rightIris.re_init(pts=mesh)
@@ -506,16 +506,16 @@ def frame(p):
 
 	if (luRegen or (abs(newLeftUpperLidWeight - prevLeftUpperLidWeight) >=
 	  upperLidRegenThreshold)):
-		newLeftUpperLidPts = pointsInterp(upperLidOpenPts,
+		newLeftUpperLidPts = points_interp(upperLidOpenPts,
 		  upperLidClosedPts, newLeftUpperLidWeight)
 		if newLeftUpperLidWeight > prevLeftUpperLidWeight:
-			leftUpperEyelid.re_init(pts=pointsMesh(
-			  upperLidEdgePts, prevLeftUpperLidPts,
-			  newLeftUpperLidPts, 5, 0, False))
+			leftUpperEyelid.re_init(pts=points_mesh(
+			  (upperLidEdgePts, prevLeftUpperLidPts,
+			  newLeftUpperLidPts), 5, 0, False))
 		else:
-			leftUpperEyelid.re_init(pts=pointsMesh(
-			  upperLidEdgePts, newLeftUpperLidPts,
-			  prevLeftUpperLidPts, 5, 0, False))
+			leftUpperEyelid.re_init(pts=points_mesh(
+			  (upperLidEdgePts, newLeftUpperLidPts,
+			  prevLeftUpperLidPts), 5, 0, False))
 		prevLeftUpperLidPts    = newLeftUpperLidPts
 		prevLeftUpperLidWeight = newLeftUpperLidWeight
 		luRegen = True
@@ -524,16 +524,16 @@ def frame(p):
 
 	if (llRegen or (abs(newLeftLowerLidWeight - prevLeftLowerLidWeight) >=
 	  lowerLidRegenThreshold)):
-		newLeftLowerLidPts = pointsInterp(lowerLidOpenPts,
+		newLeftLowerLidPts = points_interp(lowerLidOpenPts,
 		  lowerLidClosedPts, newLeftLowerLidWeight)
 		if newLeftLowerLidWeight > prevLeftLowerLidWeight:
-			leftLowerEyelid.re_init(pts=pointsMesh(
-			  lowerLidEdgePts, prevLeftLowerLidPts,
-			  newLeftLowerLidPts, 5, 0, False))
+			leftLowerEyelid.re_init(pts=points_mesh(
+			  (lowerLidEdgePts, prevLeftLowerLidPts,
+			  newLeftLowerLidPts), 5, 0, False))
 		else:
-			leftLowerEyelid.re_init(pts=pointsMesh(
-			  lowerLidEdgePts, newLeftLowerLidPts,
-			  prevLeftLowerLidPts, 5, 0, False))
+			leftLowerEyelid.re_init(pts=points_mesh(
+			  (lowerLidEdgePts, newLeftLowerLidPts,
+			  prevLeftLowerLidPts), 5, 0, False))
 		prevLeftLowerLidWeight = newLeftLowerLidWeight
 		prevLeftLowerLidPts    = newLeftLowerLidPts
 		llRegen = True
@@ -542,16 +542,16 @@ def frame(p):
 
 	if (ruRegen or (abs(newRightUpperLidWeight - prevRightUpperLidWeight) >=
 	  upperLidRegenThreshold)):
-		newRightUpperLidPts = pointsInterp(upperLidOpenPts,
+		newRightUpperLidPts = points_interp(upperLidOpenPts,
 		  upperLidClosedPts, newRightUpperLidWeight)
 		if newRightUpperLidWeight > prevRightUpperLidWeight:
-			rightUpperEyelid.re_init(pts=pointsMesh(
-			  upperLidEdgePts, prevRightUpperLidPts,
-			  newRightUpperLidPts, 5, 0, False, True))
+			rightUpperEyelid.re_init(pts=points_mesh(
+			  (upperLidEdgePts, prevRightUpperLidPts,
+			  newRightUpperLidPts), 5, 0, True))
 		else:
-			rightUpperEyelid.re_init(pts=pointsMesh(
-			  upperLidEdgePts, newRightUpperLidPts,
-			  prevRightUpperLidPts, 5, 0, False, True))
+			rightUpperEyelid.re_init(pts=points_mesh(
+			  (upperLidEdgePts, newRightUpperLidPts,
+			  prevRightUpperLidPts), 5, 0, True))
 		prevRightUpperLidWeight = newRightUpperLidWeight
 		prevRightUpperLidPts    = newRightUpperLidPts
 		ruRegen = True
@@ -560,16 +560,16 @@ def frame(p):
 
 	if (rlRegen or (abs(newRightLowerLidWeight - prevRightLowerLidWeight) >=
 	  lowerLidRegenThreshold)):
-		newRightLowerLidPts = pointsInterp(lowerLidOpenPts,
+		newRightLowerLidPts = points_interp(lowerLidOpenPts,
 		  lowerLidClosedPts, newRightLowerLidWeight)
 		if newRightLowerLidWeight > prevRightLowerLidWeight:
-			rightLowerEyelid.re_init(pts=pointsMesh(
-			  lowerLidEdgePts, prevRightLowerLidPts,
-			  newRightLowerLidPts, 5, 0, False, True))
+			rightLowerEyelid.re_init(pts=points_mesh(
+			  (lowerLidEdgePts, prevRightLowerLidPts,
+			  newRightLowerLidPts), 5, 0, True))
 		else:
-			rightLowerEyelid.re_init(pts=pointsMesh(
-			  lowerLidEdgePts, newRightLowerLidPts,
-			  prevRightLowerLidPts, 5, 0, False, True))
+			rightLowerEyelid.re_init(pts=points_mesh(
+			  (lowerLidEdgePts, newRightLowerLidPts,
+			  prevRightLowerLidPts), 5, 0, True))
 		prevRightLowerLidWeight = newRightLowerLidWeight
 		prevRightLowerLidPts    = newRightLowerLidPts
 		rlRegen = True
