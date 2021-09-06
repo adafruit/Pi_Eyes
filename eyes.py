@@ -105,7 +105,7 @@ light  = pi3d.Light(lightpos=(0, -500, -500), lightamb=(0.2, 0.2, 0.2))
 
 # Load texture maps --------------------------------------------------------
 
-irisMap   = pi3d.Texture("graphics/iris.jpg"  , mipmap=False,
+irisMap   = pi3d.Texture("graphics/wolf-iris.png"  , mipmap=False,
               filter=pi3d.GL_LINEAR)
 scleraMap = pi3d.Texture("graphics/sclera.png", mipmap=False,
               filter=pi3d.GL_LINEAR, blend=True)
