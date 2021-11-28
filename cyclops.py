@@ -78,6 +78,7 @@ lowerLidEdgePts   = get_points(dom, "lowerLidEdge"  , 33, False, False)
 
 DISPLAY = pi3d.Display.create(samples=4)
 DISPLAY.set_background(0, 0, 0, 1) # r,g,b,alpha
+DISPLAY.frames_per_second = 30 # limit to 30 FPS
 
 # eyeRadius is the size, in pixels, at which the whole eye will be rendered.
 if DISPLAY.width <= (DISPLAY.height * 2):
