@@ -133,8 +133,6 @@ def re_axis(shape, texture_offset):
 # (open shape) cases. Esp. since the iris is a weird case that'll need
 # 3 paths (edge, open and closed)
 
-
-
 def mesh_init(uv_steps, uv_offset, closed, lid):
     """Given number of U and V steps, generate boilerplate object with
        given texture coordinates and point indices. The initial vertex

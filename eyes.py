@@ -199,6 +199,15 @@ angle1 = zangle(scleraFrontPts, eyeRadius)[1] # Sclera front angle
 angle2 = zangle(scleraBackPts , eyeRadius)[1] # " back angle
 aRange = 180 - angle1 - angle2
 pts    = []
+
+# ADD EXTRA INITIAL POINT because of some weird behavior with Pi3D and
+# VideoCore VI with the Lathed shapes we make later. This adds a *tiny*
+# ring of extra polygons that simply disappear on screen. It's not
+# necessary on VC4, but not harmful either, so we just do it rather
+# than try to be all clever.
+ca, sa = pi3d.Utility.from_polar((90 - angle1) + aRange * 0.0001)
+pts.append((ca * eyeRadius, sa * eyeRadius))
+
 for i in range(24):
 	ca, sa = pi3d.Utility.from_polar((90 - angle1) - aRange * i / 23)
 	pts.append((ca * eyeRadius, sa * eyeRadius))
