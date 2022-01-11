@@ -88,7 +88,7 @@ eyeRadius   = 128  # Default; use 240 for IPS screens
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--radius", type=int)
-args = parser.parse_args()
+args, _ = parser.parse_known_args()
 if args.radius:
 	eyeRadius = args.radius
 
@@ -106,14 +106,14 @@ light  = pi3d.Light(lightpos=(0, -500, -500), lightamb=(0.2, 0.2, 0.2))
 # Load texture maps --------------------------------------------------------
 
 irisMap   = pi3d.Texture("graphics/iris.jpg"  , mipmap=False,
-              filter=pi3d.GL_LINEAR)
+              filter=pi3d.constants.GL_LINEAR)
 scleraMap = pi3d.Texture("graphics/sclera.png", mipmap=False,
-              filter=pi3d.GL_LINEAR, blend=True)
+              filter=pi3d.constants.GL_LINEAR, blend=True)
 lidMap    = pi3d.Texture("graphics/lid.png"   , mipmap=False,
-              filter=pi3d.GL_LINEAR, blend=True)
+              filter=pi3d.constants.GL_LINEAR, blend=True)
 # U/V map may be useful for debugging texture placement; not normally used
 #uvMap     = pi3d.Texture("graphics/uv.png"    , mipmap=False,
-#              filter=pi3d.GL_LINEAR, blend=False, m_repeat=True)
+#              filter=pi3d.constants.GL_LINEAR, blend=False, m_repeat=True)
 
 
 # Initialize static geometry -----------------------------------------------
