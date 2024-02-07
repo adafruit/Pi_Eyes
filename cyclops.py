@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 # This is a PARED-DOWN version of eyes.py designed for the Gakken
 # WorldEye display.  It renders a single eye (centered on screen) and
@@ -11,7 +11,8 @@ import pi3d
 import random
 import threading
 import time
-import RPi.GPIO as GPIO
+import board
+import digitalio
 from svg.path import Path, parse_path
 from xml.dom.minidom import parse
 from gfxutil import *
@@ -30,15 +31,15 @@ TRACKING        = True  # If True, eyelid tracks pupil
 PUPIL_SMOOTH    = 16    # If > 0, filter input from PUPIL_IN
 PUPIL_MIN       = 0.0   # Lower analog range from PUPIL_IN
 PUPIL_MAX       = 1.0   # Upper "
-BLINK_PIN       = 23    # GPIO pin for blink button
+BLINK_PIN       = board.D23  # GPIO pin for blink button
 AUTOBLINK       = True  # If True, eye blinks autonomously
 
 
 # GPIO initialization ------------------------------------------------------
 
-GPIO.setmode(GPIO.BCM)
-if BLINK_PIN >= 0: GPIO.setup(BLINK_PIN , GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
+if BLINK_PIN is not None:
+	BLINK_PIN = digitalio.DigitalInOut(BLINK_PIN)
+	BLINK_PIN.switch_to_input(pull=digitalio.Pull.UP)
 
 # ADC stuff ----------------------------------------------------------------
 
@@ -337,8 +338,8 @@ def frame(p):
 		if (now - blinkStartTime) >= blinkDuration:
 			# Yes...increment blink state, unless...
 			if (blinkState == 1 and # Enblinking and...
-			    (BLINK_PIN >= 0 and    # blink pin held
-			     GPIO.input(BLINK_PIN) == GPIO.LOW)):
+			    (BLINK_PIN is not None and    # blink pin held
+			     BLINK_PIN.value == False)):
 				# Don't advance yet; eye is held closed
 				pass
 			else:
@@ -349,7 +350,7 @@ def frame(p):
 					blinkDuration *= 2.0
 					blinkStartTime = now
 	else:
-		if BLINK_PIN >= 0 and GPIO.input(BLINK_PIN) == GPIO.LOW:
+		if BLINK_PIN is not None and BLINK_PIN == False:
 			blinkState     = 1 # ENBLINK
 			blinkStartTime = now
 			blinkDuration  = random.uniform(0.035, 0.06)
@@ -450,21 +451,24 @@ def split( # Recursive simulated pupil response when no analog sensor
 
 # MAIN LOOP -- runs continuously -------------------------------------------
 
-while True:
+# If script is invoked standalone, not imported by another script,
+# run example test...
+if __name__ == "__main__":
+	while True:
 
-	if PUPIL_IN >= 0: # Pupil scale from sensor
-		v = bonnet.channel[PUPIL_IN].value
-		# If you need to calibrate PUPIL_MIN and MAX,
-		# add a 'print v' here for testing.
-		if   v < PUPIL_MIN: v = PUPIL_MIN
-		elif v > PUPIL_MAX: v = PUPIL_MAX
-		# Scale to 0.0 to 1.0:
-		v = (v - PUPIL_MIN) / (PUPIL_MAX - PUPIL_MIN)
-		if PUPIL_SMOOTH > 0:
-			v = ((currentPupilScale * (PUPIL_SMOOTH - 1) + v) /
-			     PUPIL_SMOOTH)
-		frame(v)
-	else: # Fractal auto pupil scale
-		v = random.random()
-		split(currentPupilScale, v, 4.0, 1.0)
-	currentPupilScale = v
+		if PUPIL_IN >= 0: # Pupil scale from sensor
+			v = bonnet.channel[PUPIL_IN].value
+			# If you need to calibrate PUPIL_MIN and MAX,
+			# add a 'print v' here for testing.
+			if   v < PUPIL_MIN: v = PUPIL_MIN
+			elif v > PUPIL_MAX: v = PUPIL_MAX
+			# Scale to 0.0 to 1.0:
+			v = (v - PUPIL_MIN) / (PUPIL_MAX - PUPIL_MIN)
+			if PUPIL_SMOOTH > 0:
+				v = ((currentPupilScale * (PUPIL_SMOOTH - 1) + v) /
+					PUPIL_SMOOTH)
+			frame(v)
+		else: # Fractal auto pupil scale
+			v = random.random()
+			split(currentPupilScale, v, 4.0, 1.0)
+		currentPupilScale = v

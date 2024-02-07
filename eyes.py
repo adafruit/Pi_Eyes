@@ -10,7 +10,8 @@ import pi3d
 import random
 import threading
 import time
-import RPi.GPIO as GPIO
+import board
+import digitalio
 from svg.path import Path, parse_path
 from xml.dom.minidom import parse
 from gfxutil import *
@@ -29,19 +30,24 @@ TRACKING        = True  # If True, eyelid tracks pupil
 PUPIL_SMOOTH    = 16    # If > 0, filter input from PUPIL_IN
 PUPIL_MIN       = 0.0   # Lower analog range from PUPIL_IN
 PUPIL_MAX       = 1.0   # Upper "
-WINK_L_PIN      = 22    # GPIO pin for LEFT eye wink button
-BLINK_PIN       = 23    # GPIO pin for blink button (BOTH eyes)
-WINK_R_PIN      = 24    # GPIO pin for RIGHT eye wink button
+WINK_L_PIN      = board.D22    # GPIO pin for LEFT eye wink button
+BLINK_PIN       = board.D23    # GPIO pin for blink button (BOTH eyes)
+WINK_R_PIN      = board.D24    # GPIO pin for RIGHT eye wink button
 AUTOBLINK       = True  # If True, eyes blink autonomously
 CRAZY_EYES      = False # If True, each eye moves in different directions
 
 
 # GPIO initialization ------------------------------------------------------
 
-GPIO.setmode(GPIO.BCM)
-if WINK_L_PIN >= 0: GPIO.setup(WINK_L_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-if BLINK_PIN  >= 0: GPIO.setup(BLINK_PIN , GPIO.IN, pull_up_down=GPIO.PUD_UP)
-if WINK_R_PIN >= 0: GPIO.setup(WINK_R_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+if WINK_L_PIN is not None:
+	WINK_L_PIN = digitalio.DigitalInOut(WINK_L_PIN)
+	WINK_L_PIN.switch_to_input(pull=digitalio.Pull.UP)
+if BLINK_PIN is not None:
+	BLINK_PIN = digitalio.DigitalInOut(BLINK_PIN)
+	BLINK_PIN.switch_to_input(pull=digitalio.Pull.UP)
+if WINK_R_PIN is not None:
+	WINK_R_PIN = digitalio.DigitalInOut(WINK_R_PIN)
+	WINK_R_PIN.switch_to_input(pull=digitalio.Pull.UP)
 
 
 # ADC stuff ----------------------------------------------------------------
@@ -426,10 +432,10 @@ def frame(p):
 		if (now - blinkStartTimeLeft) >= blinkDurationLeft:
 			# Yes...increment blink state, unless...
 			if (blinkStateLeft == 1 and # Enblinking and...
-			    ((BLINK_PIN >= 0 and    # blink pin held, or...
-			      GPIO.input(BLINK_PIN) == GPIO.LOW) or
-			    (WINK_L_PIN >= 0 and    # wink pin held
-			      GPIO.input(WINK_L_PIN) == GPIO.LOW))):
+			    ((BLINK_PIN is not None and    # blink pin held, or...
+			      BLINK_PIN.value == False) or
+			    (WINK_L_PIN is not None and    # wink pin held
+			      WINK_L_PIN.value == False))):
 				# Don't advance yet; eye is held closed
 				pass
 			else:
@@ -440,7 +446,7 @@ def frame(p):
 					blinkDurationLeft *= 2.0
 					blinkStartTimeLeft = now
 	else:
-		if WINK_L_PIN >= 0 and GPIO.input(WINK_L_PIN) == GPIO.LOW:
+		if WINK_L_PIN is not None and WINK_L_PIN.value == False:
 			blinkStateLeft     = 1 # ENBLINK
 			blinkStartTimeLeft = now
 			blinkDurationLeft  = random.uniform(0.035, 0.06)
@@ -450,10 +456,10 @@ def frame(p):
 		if (now - blinkStartTimeRight) >= blinkDurationRight:
 			# Yes...increment blink state, unless...
 			if (blinkStateRight == 1 and # Enblinking and...
-			    ((BLINK_PIN >= 0 and    # blink pin held, or...
-			      GPIO.input(BLINK_PIN) == GPIO.LOW) or
-			    (WINK_R_PIN >= 0 and    # wink pin held
-			      GPIO.input(WINK_R_PIN) == GPIO.LOW))):
+			    ((BLINK_PIN is not None and    # blink pin held, or...
+			      BLINK_PIN.value == False) or
+			    (WINK_R_PIN is not None and    # wink pin held
+			      WINK_R_PIN.value == False))):
 				# Don't advance yet; eye is held closed
 				pass
 			else:
@@ -464,12 +470,12 @@ def frame(p):
 					blinkDurationRight *= 2.0
 					blinkStartTimeRight = now
 	else:
-		if WINK_R_PIN >= 0 and GPIO.input(WINK_R_PIN) == GPIO.LOW:
+		if WINK_R_PIN is not None and WINK_R_PIN.value == False:
 			blinkStateRight     = 1 # ENBLINK
 			blinkStartTimeRight = now
 			blinkDurationRight  = random.uniform(0.035, 0.06)
 
-	if BLINK_PIN >= 0 and GPIO.input(BLINK_PIN) == GPIO.LOW:
+	if BLINK_PIN is not None and BLINK_PIN.value == False:
 		duration = random.uniform(0.035, 0.06)
 		if blinkStateLeft == 0:
 			blinkStateLeft     = 1
