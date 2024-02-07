@@ -3,6 +3,7 @@
 # This is a hasty port of the Teensy eyes code to Python...all kludgey with
 # an embarrassing number of globals in the frame() function and stuff.
 # Needed to get SOMETHING working, can focus on improvements next.
+# Requires adafruit-blinka (CircuitPython APIs for Python on big hardware)
 
 import argparse
 import math

@@ -5,6 +5,7 @@
 # does NOT require the OLED or TFT displays...doesn't even require the
 # Snake Eyes Bonnet if you just have it running in autonomous mode.
 # Code is just as in-progress as eyes.py and could use some work.
+# Requires adafruit-blinka (CircuitPython APIs for Python on big hardware)
 
 import math
 import pi3d
